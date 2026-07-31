@@ -152,7 +152,7 @@ def run_inference(model, extractor, loader, device,
             logits = torch.cat(store[task]["logits"], dim=0)
             targets = torch.cat(store[task]["targets"], dim=0)
             preds = F.softmax(logits, dim=-1).argmax(dim=-1)
-            cm = confusion_matrix_torch(preds, targets, n_classes=2)
+            cm = confusion_matrix_torch(preds, targets, num_classes=2)
             metrics[task] = compute_all_metrics(cm)
             metrics[task]["n"] = int(len(targets))
     return struct_rows, atom_rows, metrics
