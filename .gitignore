@@ -5,3 +5,8 @@ probe_outputs/
 probe_mace_multitask_outputs/
 probe_data_check/
 *.pt
+probe_regression_outputs/
+probe_regression_inference/
+regression_predictions/
+.pytest_cache/
+*.pt.tmp

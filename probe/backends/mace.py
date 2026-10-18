@@ -177,13 +177,15 @@ def load_probe_extxyz_list(xyz_path: str, max_structures: int = None):
 def atoms_to_atomic_data(atoms, z_table, r_max, heads=None):
     if heads is None:
         heads = ['Default']
-    energy = _get_energy(atoms) or 0.0
+    energy = _get_energy(atoms)
+    if energy is None:
+        energy = float('nan')
     config = Configuration(
         atomic_numbers=atoms.get_atomic_numbers(),
         positions=atoms.get_positions(),
         properties={
             'energy': energy,
-            'forces': atoms.arrays.get('forces', np.zeros((len(atoms), 3))),
+            'forces': atoms.arrays.get('forces', np.full((len(atoms), 3), np.nan)),
         },
         property_weights={'energy': 1.0, 'forces': 1.0},
         pbc=tuple(atoms.get_pbc().tolist()),

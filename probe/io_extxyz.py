@@ -63,14 +63,15 @@ def read_probe_extxyz_frame(lines: list[str], start: int = 0) -> tuple[dict, int
     symbols, positions, true_forces = [], [], []
     for i in range(n_atoms):
         parts = lines[start + 2 + i].split()
-        if len(parts) < 7:
+        if len(parts) < 4 or len(parts) in (5, 6):
             raise ValueError(
-                f"Expected >=7 columns per atom (species pos forces), "
+                f"Expected 4 columns (species pos) or >=7 (species pos forces), "
                 f"got {len(parts)} at line {start + 3 + i}"
             )
         symbols.append(parts[0])
         positions.append([float(parts[1]), float(parts[2]), float(parts[3])])
-        true_forces.append([float(parts[4]), float(parts[5]), float(parts[6])])
+        true_forces.append([float(parts[4]), float(parts[5]), float(parts[6])]
+                           if len(parts) >= 7 else [float('nan')] * 3)
 
     frame = {
         'n_atoms': n_atoms,
