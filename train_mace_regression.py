@@ -16,7 +16,7 @@ def main():
     p.add_argument('--batch-size', type=int, default=64)
     p.add_argument('--valid-fraction', type=float, default=.1)
     p.add_argument('--lr', type=float, default=5e-5)
-    p.add_argument('--patience', type=int, default=10)
+    p.add_argument('--patience', type=int, default=20)
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     p.add_argument('--enable-cueq', action='store_true')

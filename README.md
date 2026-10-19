@@ -40,7 +40,8 @@ Keep a separate test set for final evaluation. Frozen MACE predictions/features
 are cached in RAM; no training-set percentile scan is needed.
 Use `--enable-cueq` with the supplied cuEquivariance environment if appropriate.
 
-`best_regressor.pt` is selected by weighted validation MSE. `last_checkpoint.pt`
+`best_regressor.pt` is selected by weighted validation MSE. Training stops after
+20 consecutive epochs without improvement by default (`--patience 20`). `last_checkpoint.pt`
 saves model, optimizer, scheduler, random states, and history each epoch.
 The checkpoint stores architecture settings for inference. Resume with the same
 backbone, data, split, seed, and loss weights:
