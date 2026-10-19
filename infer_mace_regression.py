@@ -67,13 +67,13 @@ def main():
     if not structures:
         raise ValueError('No structures available for inference')
     for name, rows in [('structure', structures), ('atom', atoms)]:
-        with (out / f'predictions_{name}.csv').open('w', newline='') as f:
+        with (out / f'predictions_{name}_regression.csv').open('w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0]))
             writer.writeheader()
             writer.writerows(rows)
     metrics = {key: regression_metrics(torch.cat(pred), torch.cat(target))
                for key, (pred, target) in store.items()}
-    (out / 'metrics.json').write_text(json.dumps(metrics, indent=2, allow_nan=False))
+    (out / 'metrics_regression.json').write_text(json.dumps(metrics, indent=2, allow_nan=False))
     print(json.dumps(metrics, indent=2))
 
 

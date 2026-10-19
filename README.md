@@ -61,7 +61,8 @@ python infer_mace_regression.py \
 ```
 
 Use the same frozen MACE backbone used during training. Outputs are
-`predictions_structure.csv`, `predictions_atom.csv`, and `metrics.json`.
+`predictions_structure_regression.csv`, `predictions_atom_regression.csv`, and
+`metrics_regression.json`.
 CSV columns explicitly distinguish predicted error from reference error.
 Metrics report MAE, RMSE, R² and sample count for each task. Missing references
 are blank in CSV and excluded from metrics; undefined R² is JSON `null`.
