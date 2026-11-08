@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import torch
 from probe.regression import ErrorRegressor, run_epoch
+from probe.pca import ModelWithPCA, make_pca, restore_model
 
 
 def main():
@@ -22,6 +23,9 @@ def main():
     p.add_argument('--enable-cueq', action='store_true')
     p.add_argument('--loss-weights', type=float, nargs=3, default=[1., 1., 1.],
                    metavar=('ENERGY', 'FORCE_ATOM', 'FORCE_STRUCTURE'))
+    p.add_argument('--pca-dim', type=int, help='Reduced atomic embedding dimension (e.g. 8, 32, 64)')
+    p.add_argument('--pca-model', help='Prefit torch or sklearn PCA artifact; requires --pca-dim')
+    p.add_argument('--pca-max-atoms', type=int, help='Maximum training atoms used to fit PCA')
     p.add_argument('--resume', help='Path to regression last_checkpoint.pt')
     args = p.parse_args()
     if not 0 < args.valid_fraction < 1:
@@ -38,19 +42,36 @@ def main():
     if not len(train.dataset) or not len(val.dataset):
         raise ValueError('Both train and validation sets must contain structures')
     processor = CachedMACEProcessor(extractor, compute_force=True)
-    config = {'backbone_dim': extractor.feat_dim}
-    model = ErrorRegressor(**config).to(args.device)
+    ckpt = None
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=args.device, weights_only=False)
+        if ckpt.get('task') != 'error_regression':
+            raise ValueError('Expected a regression checkpoint')
+        if ckpt.get('original_dim', extractor.feat_dim) != extractor.feat_dim:
+            raise ValueError('MACE feature dimension differs from checkpoint')
+        if args.pca_dim is not None and args.pca_dim != ckpt.get('pca_dim'):
+            raise ValueError('Resume requires unchanged PCA dimension')
+        if args.pca_model or args.pca_max_atoms is not None:
+            raise ValueError('Resume restores checkpoint PCA; omit --pca-model and --pca-max-atoms')
+        args.pca_dim = ckpt.get('pca_dim')
+        config = ckpt['model_config']
+        model = restore_model(ErrorRegressor, ckpt, args.device)
+        pca_info = ckpt.get('pca_info')
+    else:
+        projection, pca_info = make_pca(processor, train, args.device, args.pca_dim,
+                                        extractor.feat_dim, args.pca_model, args.pca_max_atoms)
+        config = {'backbone_dim': args.pca_dim or extractor.feat_dim}
+        model = ErrorRegressor(**config)
+        if projection is not None:
+            model = ModelWithPCA(model, projection)
+        model = model.to(args.device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=.9)
     best, stale, start, history = float('inf'), 0, 0, []
-    if args.resume:
-        ckpt = torch.load(args.resume, map_location=args.device, weights_only=False)
-        if ckpt.get('task') != 'error_regression' or ckpt['model_config'] != config:
-            raise ValueError('Expected a compatible regression checkpoint')
+    if ckpt is not None:
         for key in ('mace_model', 'train_xyz', 'valid_fraction', 'seed', 'loss_weights'):
             if ckpt['args'][key] != vars(args)[key]:
                 raise ValueError(f'Resume requires unchanged {key}')
-        model.load_state_dict(ckpt['model_state_dict'])
         optimizer.load_state_dict(ckpt['optimizer'])
         scheduler.load_state_dict(ckpt['scheduler'])
         best, stale, start = ckpt['best'], ckpt['stale'], ckpt['epoch'] + 1
@@ -66,6 +87,7 @@ def main():
         best, stale = (val_loss, 0) if improved else (best, stale + 1)
         history.append({'epoch': epoch, 'train_loss': train_loss, 'val_loss': val_loss, 'metrics': metrics})
         ckpt = dict(task='error_regression', model_config=config, model_state_dict=model.state_dict(),
+                    pca_dim=args.pca_dim, original_dim=extractor.feat_dim, pca_info=pca_info,
                     optimizer=optimizer.state_dict(), scheduler=scheduler.state_dict(), epoch=epoch,
                     best=best, stale=stale, history=history, args=vars(args),
                     rng_state=torch.get_rng_state(),

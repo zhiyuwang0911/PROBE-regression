@@ -85,3 +85,48 @@ Original classifier scripts (including AIMNet2) remain for provenance and
 comparison; they still perform classification. Use the two `*_regression.py`
 entry points above for the new MACE regressor. See
 [CLASSIFICATION_LEGACY.md](CLASSIFICATION_LEGACY.md) for the original documentation.
+
+## Optional PCA atomic embeddings
+
+Reduce frozen MACE atomic embeddings before the regression heads with
+`--pca-dim 8`, `--pca-dim 32`, or `--pca-dim 64`. Omit this option for the
+existing full-dimensional model. PCA is fitted only on valid training atoms,
+excluding padded and nonfinite embeddings; validation and test data never fit
+or update the projection.
+
+```bash
+python train_mace_regression.py \
+  --mace-model /path/to/MACE.model --train-xyz /path/to/train.xyz \
+  --pca-dim 32 --output-dir probe_regression_pca32
+
+python infer_mace_regression.py \
+  --mace-model /path/to/MACE.model \
+  --checkpoint probe_regression_pca32/best_regressor.pt \
+  --test-xyz /path/to/test.xyz --output-dir predictions_pca32
+```
+
+Checkpoints store the PCA mean/components as model buffers, the raw feature
+width, PCA dimension and model configuration. Inference automatically restores
+the identical coordinates. Use the same MACE backbone used during training.
+Old regression checkpoints without PCA metadata remain supported.
+
+Resume with the original training arguments and `--resume .../last_checkpoint.pt`.
+The saved PCA basis is restored without fitting again; `--pca-dim` may be omitted
+or must match the checkpoint. Do not supply `--pca-model` or `--pca-max-atoms`
+when resuming.
+
+For large datasets, `--pca-max-atoms 1000000` caps fitting to the first valid
+training atoms encountered (not a random sample). Fitting uses streaming float64
+covariance and requires more training atoms than the requested dimension.
+
+To share coordinates with the classifier, use `--pca-model shared_pca.pt`
+with `--pca-dim`. A torch artifact contains `mean` (raw feature width) and
+`components` (rows of PCA directions); `.joblib`/`.pkl` sklearn PCA artifacts
+are also supported when joblib is installed. Only load artifacts you trust.
+The first requested component rows are used, and the projection is embedded
+in subsequent checkpoints. Independently fitted runs may have different bases;
+use the same prefit artifact and MACE backbone for shared coordinates. Fit that
+artifact only on the training data allowed for both experiments.
+
+This option applies to `train_mace_regression.py` and `infer_mace_regression.py`;
+the legacy classifier and multitask entry points retain their existing behavior.

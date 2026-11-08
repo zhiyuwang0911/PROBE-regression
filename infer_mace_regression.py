@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import torch
 from probe.regression import ErrorRegressor, error_targets, regression_metrics
+from probe.pca import restore_model
 
 
 def main():
@@ -22,10 +23,11 @@ def main():
     ckpt = torch.load(args.checkpoint, map_location=args.device, weights_only=False)
     if ckpt.get('task') != 'error_regression':
         raise ValueError('Expected an error_regression checkpoint, not classifier weights')
-    model = ErrorRegressor(**ckpt['model_config']).to(args.device)
-    model.load_state_dict(ckpt['model_state_dict'])
+    model = restore_model(ErrorRegressor, ckpt, args.device)
     model.eval()
     extractor = load_mace(args.mace_model, args.device, enable_cueq=args.enable_cueq)
+    if ckpt.get('original_dim', extractor.feat_dim) != extractor.feat_dim:
+        raise ValueError('MACE feature dimension differs from checkpoint')
     loader = load_extxyz_dataloader(args.test_xyz, get_z_table(extractor),
                                     float(extractor.mace_model.r_max), batch_size=args.batch_size, shuffle=False)
     structures, atoms = [], []
